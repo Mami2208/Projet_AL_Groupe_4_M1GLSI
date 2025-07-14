@@ -1,0 +1,515 @@
+openapi: 3.0.0
+info:
+  title: API Actualités
+  description: API REST pour la gestion des articles d'actualité
+  version: 1.0.0
+  contact:
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000/api
+    description: Serveur de développement
+  - url: https://api.example.com/v1
+    description: Serveur de production
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Article:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        titre:
+          type: string
+          example: "Titre de l'article"
+        contenu:
+          type: string
+          example: "Contenu complet de l'article..."
+        date_publication:
+          type: string
+          format: date-time
+        auteur:
+          $ref: '#/components/schemas/User'
+        categorie:
+          $ref: '#/components/schemas/Categorie'
+        est_publie:
+          type: boolean
+          example: true
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "Jean Dupont"
+        email:
+          type: string
+          format: email
+          example: "jean.dupont@example.com"
+        role:
+          type: string
+          enum: ["visiteur", "editeur", "admin"]
+          example: "editeur"
+
+    Categorie:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        nom:
+          type: string
+          example: "Technologie"
+        slug:
+          type: string
+          example: "technologie"
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Message d'erreur détaillé"
+
+paths:
+  /articles:
+    get:
+      tags:
+        - Articles
+      summary: Récupérer la liste des articles
+      description: Retourne une liste paginée des articles publiés
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+          description: Numéro de la page à récupérer
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+            default: 10
+          description: Nombre d'articles par page (max 100)
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [json, xml]
+            default: json
+          description: Format de la réponse (json ou xml)
+      responses:
+        '200':
+          description: Liste des articles récupérée avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Article'
+                  links:
+                    $ref: '#/components/schemas/PaginationLinks'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+            application/xml:
+              schema:
+                type: string
+                example: "<articles>...</articles>"
+
+  /articles/categorie/{slug}:
+    get:
+      tags:
+        - Articles
+      summary: Récupérer les articles d'une catégorie
+      description: Retourne la liste des articles appartenant à une catégorie spécifique
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+          description: Slug de la catégorie
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [json, xml]
+            default: json
+          description: Format de la réponse (json ou xml)
+      responses:
+        '200':
+          description: Liste des articles de la catégorie
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Article'
+            application/xml:
+              schema:
+                type: string
+                example: "<articles>...</articles>"
+        '404':
+          description: Catégorie non trouvée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /articles/groupes-par-categorie:
+    get:
+      tags:
+        - Articles
+      summary: Récupérer les articles groupés par catégorie
+      description: Retourne la liste des articles groupés par leur catégorie
+      parameters:
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [json, xml]
+            default: json
+          description: Format de la réponse (json ou xml)
+      responses:
+        '200':
+          description: Liste des articles groupés par catégorie
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    categorie:
+                      type: string
+                      example: "Technologie"
+                    slug:
+                      type: string
+                      example: "technologie"
+                    articles:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Article'
+            application/xml:
+              schema:
+                type: string
+                example: "<categories>...</categories>"
+
+  /auth/register:
+    post:
+      tags:
+        - Authentification
+      summary: S'inscrire
+      description: Crée un nouveau compte utilisateur
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+                - password_confirmation
+              properties:
+                name:
+                  type: string
+                  example: "Jean Dupont"
+                email:
+                  type: string
+                  format: email
+                  example: "jean.dupont@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "motdepasse123"
+                password_confirmation:
+                  type: string
+                  format: password
+                role:
+                  type: string
+                  enum: ["visiteur", "editeur"]
+                  default: "visiteur"
+      responses:
+        '201':
+          description: Compte créé avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Inscription réussie"
+                  user:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+                    example: "1|abcdefghijklmnopqrstuvwxyz"
+        '422':
+          description: Erreur de validation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentification
+      summary: Se connecter
+      description: Authentifie un utilisateur et retourne un jeton JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "jean.dupont@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "motdepasse123"
+      responses:
+        '200':
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Connexion réussie"
+                  user:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+                    example: "1|abcdefghijklmnopqrstuvwxyz"
+        '401':
+          description: Identifiants invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentification
+      summary: Se déconnecter
+      description: Invalide le jeton d'authentification de l'utilisateur
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Déconnexion réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Déconnexion réussie"
+        '401':
+          description: Non authentifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/me:
+    get:
+      tags:
+        - Authentification
+      summary: Récupérer le profil utilisateur
+      description: Retourne les informations de l'utilisateur connecté
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profil utilisateur récupéré avec succès
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Non authentifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /soap/authenticate:
+    post:
+      tags:
+        - SOAP
+      summary: Authentification SOAP
+      description: Authentifie un utilisateur via le service SOAP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "admin@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "password123"
+      responses:
+        '200':
+          description: Authentification réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  token:
+                    type: string
+                    example: "1|abcdefghijklmnopqrstuvwxyz"
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Identifiants invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /soap/users/list:
+    post:
+      tags:
+        - SOAP
+      summary: Lister les utilisateurs (SOAP)
+      description: Retourne la liste des utilisateurs (admin uniquement)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Liste des utilisateurs récupérée avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+        '403':
+          description: Accès refusé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    # Ajout des schémas manquants pour la pagination
+    PaginationLinks:
+      type: object
+      properties:
+        first:
+          type: string
+          nullable: true
+          example: "http://example.com/api/articles?page=1"
+        last:
+          type: string
+          nullable: true
+          example: "http://example.com/api/articles?page=5"
+        prev:
+          type: string
+          nullable: true
+          example: "http://example.com/api/articles?page=1"
+        next:
+          type: string
+          nullable: true
+          example: "http://example.com/api/articles?page=3"
+
+    PaginationMeta:
+      type: object
+      properties:
+        current_page:
+          type: integer
+          example: 2
+        from:
+          type: integer
+          example: 11
+        last_page:
+          type: integer
+          example: 5
+        path:
+          type: string
+          example: "http://example.com/api/articles"
+        per_page:
+          type: integer
+          example: 10
+        to:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 50
+
+    ValidationError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Les données fournies sont invalides."
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            email:
+              - "Le champ email est obligatoire."
+            password:
+              - "Le champ mot de passe doit contenir au moins 8 caractères."

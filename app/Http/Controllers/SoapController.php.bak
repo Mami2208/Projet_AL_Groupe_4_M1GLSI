@@ -1,0 +1,270 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use ArtinCMS\LaravelSoap\SoapController as BaseSoapController;
+use App\Models\Utilisateur;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+
+class SoapController extends BaseSoapController
+{
+    /**
+     * Initialisation du service SOAP
+     */
+    public function __construct()
+    {
+        $this->middleware('soap');
+    }
+
+    /**
+     * Enregistrer un nouvel utilisateur
+     * 
+     * @param string $nom
+     * @param string $email
+     * @param string $mot_de_passe
+     * @param string $role
+     * @return array
+     */
+    public function enregistrerUtilisateur($nom, $email, $mot_de_passe, $role = 'visiteur')
+    {
+        try {
+            $utilisateur = Utilisateur::create([
+                'name' => $nom,
+                'email' => $email,
+                'password' => Hash::make($mot_de_passe),
+                'role' => in_array($role, ['visiteur', 'editeur', 'admin']) ? $role : 'visiteur',
+            ]);
+
+            return [
+                'success' => true,
+                'message' => 'Utilisateur enregistré avec succès',
+                'utilisateur_id' => $utilisateur->id
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Erreur lors de l\'enregistrement de l\'utilisateur: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Authentifier un utilisateur
+     * 
+     * @param string $email
+     * @param string $mot_de_passe
+     * @return array
+     */
+    public function authentifier($email, $mot_de_passe)
+    {
+        $utilisateur = Utilisateur::where('email', $email)->first();
+
+        if (!$utilisateur || !Hash::check($mot_de_passe, $utilisateur->password)) {
+            return [
+                'success' => false,
+                'message' => 'Identifiants invalides'
+            ];
+        }
+
+        // Créer un token d'API pour l'utilisateur
+        $token = $utilisateur->createToken('soap-token')->plainTextToken;
+
+        return [
+            'success' => true,
+            'message' => 'Authentification réussie',
+            'token' => $token,
+            'utilisateur' => [
+                'id' => $utilisateur->id,
+                'nom' => $utilisateur->name,
+                'email' => $utilisateur->email,
+                'role' => $utilisateur->role
+            ]
+        ];
+    }
+
+    /**
+     * Obtenir les informations d'un utilisateur
+     * 
+     * @param string $token
+     * @param int $utilisateur_id
+     * @return array
+     */
+    public function obtenirUtilisateur($token, $utilisateur_id)
+    {
+        $utilisateur = $this->verifierToken($token);
+        if (!$utilisateur) {
+            return [
+                'success' => false,
+                'message' => 'Token invalide ou expiré'
+            ];
+        }
+
+        $cible = Utilisateur::find($utilisateur_id);
+        if (!$cible) {
+            return [
+                'success' => false,
+                'message' => 'Utilisateur non trouvé'
+            ];
+        }
+
+        // Vérifier les autorisations (admin ou l'utilisateur lui-même)
+        if ($utilisateur->role !== 'admin' && $utilisateur->id !== $cible->id) {
+            return [
+                'success' => false,
+                'message' => 'Non autorisé'
+            ];
+        }
+
+        return [
+            'success' => true,
+            'utilisateur' => [
+                'id' => $cible->id,
+                'nom' => $cible->name,
+                'email' => $cible->email,
+                'role' => $cible->role,
+                'date_creation' => $cible->created_at->toDateTimeString()
+            ]
+        ];
+    }
+
+    /**
+     * Mettre à jour un utilisateur
+     * 
+     * @param string $token
+     * @param int $utilisateur_id
+     * @param array $donnees
+     * @return array
+     */
+    public function mettreAJourUtilisateur($token, $utilisateur_id, $donnees)
+    {
+        $utilisateur = $this->verifierToken($token);
+        if (!$utilisateur) {
+            return [
+                'success' => false,
+                'message' => 'Token invalide ou expiré'
+            ];
+        }
+
+        $cible = Utilisateur::find($utilisateur_id);
+        if (!$cible) {
+            return [
+                'success' => false,
+                'message' => 'Utilisateur non trouvé'
+            ];
+        }
+
+        // Vérifier les autorisations (admin ou l'utilisateur lui-même)
+        if ($utilisateur->role !== 'admin' && $utilisateur->id !== $cible->id) {
+            return [
+                'success' => false,
+                'message' => 'Non autorisé'
+            ];
+        }
+
+        try {
+            $misesAJour = [];
+            
+            if (isset($donnees['nom'])) {
+                $misesAJour['name'] = $donnees['nom'];
+            }
+            
+            if (isset($donnees['email'])) {
+                $misesAJour['email'] = $donnees['email'];
+            }
+            
+            if (isset($donnees['mot_de_passe'])) {
+                $misesAJour['password'] = Hash::make($donnees['mot_de_passe']);
+            }
+            
+            if (isset($donnees['role']) && $utilisateur->role === 'admin') {
+                $misesAJour['role'] = in_array($donnees['role'], ['visiteur', 'editeur', 'admin']) 
+                    ? $donnees['role'] 
+                    : 'visiteur';
+            }
+
+            $cible->update($misesAJour);
+
+            return [
+                'success' => true,
+                'message' => 'Utilisateur mis à jour avec succès'
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Erreur lors de la mise à jour: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Supprimer un utilisateur
+     * 
+     * @param string $token
+     * @param int $utilisateur_id
+     * @return array
+     */
+    public function supprimerUtilisateur($token, $utilisateur_id)
+    {
+        $utilisateur = $this->verifierToken($token);
+        if (!$utilisateur) {
+            return [
+                'success' => false,
+                'message' => 'Token invalide ou expiré'
+            ];
+        }
+
+        // Seul un admin peut supprimer un utilisateur
+        if ($utilisateur->role !== 'admin') {
+            return [
+                'success' => false,
+                'message' => 'Non autorisé. Seul un administrateur peut effectuer cette action.'
+            ];
+        }
+
+        // Empêcher l'auto-suppression
+        if ($utilisateur->id == $utilisateur_id) {
+            return [
+                'success' => false,
+                'message' => 'Vous ne pouvez pas supprimer votre propre compte.'
+            ];
+        }
+
+        $cible = Utilisateur::find($utilisateur_id);
+        if (!$cible) {
+            return [
+                'success' => false,
+                'message' => 'Utilisateur non trouvé'
+            ];
+        }
+
+        try {
+            $cible->delete();
+            return [
+                'success' => true,
+                'message' => 'Utilisateur supprimé avec succès'
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Erreur lors de la suppression: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Vérifier la validité d'un token
+     * 
+     * @param string $token
+     * @return \App\Models\Utilisateur|bool
+     */
+    private function verifierToken($token)
+    {
+        $token = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+        if (!$token) {
+            return false;
+        }
+
+        return $token->tokenable;
+    }
+}

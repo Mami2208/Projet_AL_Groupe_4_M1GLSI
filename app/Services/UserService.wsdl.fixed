@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions name="UserService"
+    targetNamespace="http://localhost/soap"
+    xmlns:tns="http://localhost/soap"
+    xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/"
+    xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+    xmlns="http://schemas.xmlsoap.org/wsdl/">
+
+    <!-- Types -->
+    <types>
+        <xsd:schema targetNamespace="http://localhost/soap">
+            <!-- Authenticate Request -->
+            <xsd:element name="authenticate">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="email" type="xsd:string"/>
+                        <xsd:element name="password" type="xsd:string"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            
+            <!-- Authenticate Response -->
+            <xsd:element name="authenticateResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="success" type="xsd:boolean"/>
+                        <xsd:element name="token" type="xsd:string" minOccurs="0"/>
+                        <xsd:element name="user" minOccurs="0">
+                            <xsd:complexType>
+                                <xsd:sequence>
+                                    <xsd:element name="id" type="xsd:integer"/>
+                                    <xsd:element name="name" type="xsd:string"/>
+                                    <xsd:element name="email" type="xsd:string"/>
+                                    <xsd:element name="role" type="xsd:string"/>
+                                </xsd:sequence>
+                            </xsd:complexType>
+                        </xsd:element>
+                        <xsd:element name="message" type="xsd:string" minOccurs="0"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            
+            <!-- List Users Response -->
+            <xsd:element name="listUsersResponse">
+                <xsd:complexType>
+                    <xsd:sequence>
+                        <xsd:element name="success" type="xsd:boolean"/>
+                        <xsd:element name="users" minOccurs="0">
+                            <xsd:complexType>
+                                <xsd:sequence>
+                                    <xsd:element name="user" type="tns:userType" minOccurs="0" maxOccurs="unbounded"/>
+                                </xsd:sequence>
+                            </xsd:complexType>
+                        </xsd:element>
+                        <xsd:element name="message" type="xsd:string" minOccurs="0"/>
+                    </xsd:sequence>
+                </xsd:complexType>
+            </xsd:element>
+            
+            <!-- User Type -->
+            <xsd:complexType name="userType">
+                <xsd:sequence>
+                    <xsd:element name="id" type="xsd:integer"/>
+                    <xsd:element name="name" type="xsd:string"/>
+                    <xsd:element name="email" type="xsd:string"/>
+                    <xsd:element name="role" type="xsd:string"/>
+                    <xsd:element name="created_at" type="xsd:dateTime"/>
+                    <xsd:element name="updated_at" type="xsd:dateTime" minOccurs="0"/>
+                </xsd:sequence>
+            </xsd:complexType>
+        </xsd:schema>
+    </types>
+
+    <!-- Messages -->
+    <message name="authenticateRequest">
+        <part name="parameters" element="tns:authenticate"/>
+    </message>
+    
+    <message name="authenticateResponse">
+        <part name="parameters" element="tns:authenticateResponse"/>
+    </message>
+    
+    <message name="listUsersRequest">
+        <part name="token" type="xsd:string"/>
+    </message>
+    
+    <message name="listUsersResponse">
+        <part name="parameters" element="tns:listUsersResponse"/>
+    </message>
+
+    <!-- Ports -->
+    <portType name="UserServicePortType">
+        <operation name="authenticate">
+            <input message="tns:authenticateRequest"/>
+            <output message="tns:authenticateResponse"/>
+        </operation>
+        <operation name="listUsers">
+            <input message="tns:listUsersRequest"/>
+            <output message="tns:listUsersResponse"/>
+        </operation>
+    </portType>
+
+    <!-- Binding -->
+    <binding name="UserServiceBinding" type="tns:UserServicePortType">
+        <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <operation name="authenticate">
+            <soap:operation soapAction="http://localhost/soap/authenticate"/>
+            <input>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </output>
+        </operation>
+        <operation name="listUsers">
+            <soap:operation soapAction="http://localhost/soap/listUsers"/>
+            <input>
+                <soap:header message="tns:listUsersRequest" part="token" use="literal"/>
+                <soap:body use="literal"/>
+            </input>
+            <output>
+                <soap:body use="literal"/>
+            </output>
+        </operation>
+    </binding>
+
+    <!-- Service -->
+    <service name="UserService">
+        <port name="UserServicePort" binding="tns:UserServiceBinding">
+            <soap:address location="http://localhost:8000/soap"/>
+        </port>
+    </service>
+</definitions>
